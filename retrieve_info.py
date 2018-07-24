@@ -2,6 +2,7 @@ import urllib.request
 import urllib.parse
 from bs4 import BeautifulSoup
 import csv
+import examine_data as exm
 
 header = "https://www.worldcat.org/"
 
@@ -25,10 +26,11 @@ label_index = {'Title': 0, 'Author': 1, 'Publisher': 2, 'Series': 3, 'Edition/Fo
                'In': 22, 'Series Title': 23, 'Other Titles': 24, 'Description': 25, 'Contents': 26, 'Awards': 27,
                'Details': 28, 'Material Type': 29, 'Additional Physical Format': 30, 'Notes': 31, 'Language Note': 32,
                'Reproduction Notes': 33, 'More information': 34, 'Named Person': 35, 'Performer(s)': 36, 'Credits': 37,
-               'Cartographic Mathematical Data': 38, 'Target Audience': 39, 'Event notes': 40, 'Number of Edition': 41}
+               'Cartographic Mathematical Data': 38, 'Target Audience': 39, 'Event notes': 40, 'Music Type': 41,
+               'Number of Edition': 42}
 
 
-TOTAL_NUM = 42
+TOTAL_NUM = 43
 
 
 # TODO: methods for reading and writing files
@@ -98,7 +100,6 @@ def get_advanced_search_url(specifiers, au=True, yr=True, ln=True):
         link += '+ln%3A' + language
     if yr is True:
         link += '&fq=yr%3A' + year
-
 
     link += '+%3E' + "&qt=advanced&dblist=638"
     return link
@@ -319,32 +320,46 @@ def generate_label_index():
 
 if __name__ == "__main__":
     # generate_label_index()
-    name = 'b0_b1_1'
+    name = 'b0_b1_error_2'
 
-    data = read_from_file('data/real_' + name + '.csv')
+    # data = read_from_file('data/real_' + name + '.csv')
+    data = read_from_file('data/errors/' + name + '.csv')
 
     result_file = []
     error_file = []
     real_header = og_header + list(label_index.keys())
     result_file.append(real_header)
+
     # generate id_counter
-    id_counter = 3336
+    id_counter = 6256
     print(real_header)
     for folklore in data:
         id_counter += 1
         basic_info = [str(id_counter), folklore[1], folklore[0]]
         try:
-            # get info for current version info
-            search_link = get_advanced_search_url(folklore)
+            # get info for current version info by doing search with less constraints
+            new_folklore, tmp_link = exm.do_search_with_less_constraints(folklore)
+            if new_folklore != 'missing' and new_folklore != 'error':
+                search_link = tmp_link
+                basic_info = [str(id_counter), new_folklore[1], new_folklore[0]]
+            else:
+                print('*** MISSING ***')
+                id_counter -= 1
+                print(basic_info[2] + '; ' + basic_info[1])
+                error_file.append(folklore)
+                print("------------------------------------------")
+                continue
+            # get to the result page
             soup = get_soup(search_link)
             result_link = get_result_link(soup)
+            # get information from result page
             temp_row, old_link = get_info(result_link, get_oldest=True)
             row = basic_info + temp_row
             print(row)
             # print(id_counter)
             result_file.append(row)
-        except (TypeError, AttributeError, UnicodeEncodeError):
-            print('*** UNFOUND ***')
+        except (TypeError, AttributeError, UnicodeEncodeError) as err:
+            print('*** ERROR ***')
             id_counter -= 1
             print(basic_info[2] + '; ' + basic_info[1])
             error_file.append(folklore)
@@ -352,12 +367,11 @@ if __name__ == "__main__":
             continue
         except urllib.error.HTTPError as err:
             if str(err).split(':')[0] == 'HTTP Error 403':
-                error_file.append(folklore)
                 print('quota exceeded at ')
                 print('         ' + str(folklore))
                 break
             else:
-                print('*** ERROR ***')
+                print('*** NETWORK ERROR ***')
                 id_counter -= 1
                 print(basic_info[2] + '; ' + basic_info[1])
                 error_file.append(folklore)
@@ -376,12 +390,11 @@ if __name__ == "__main__":
                 result_file.append(row)
         except urllib.error.HTTPError as err:
             if str(err).split(':')[0] == 'HTTP Error 403':
-                error_file.append(folklore)
                 print('quota exceeded at ')
                 print('         ' + str(folklore))
                 break
             else:
-                print('*** ERROR ***')
+                print('*** NETWORK ERROR ***')
                 id_counter -= 1
                 print(basic_info[2] + '; ' + basic_info[1])
                 error_file.append(folklore)
@@ -395,5 +408,5 @@ if __name__ == "__main__":
         print("------------------------------------------")
     print(id_counter)
 
-    write_to_file('data/results/' + name + '_result.csv', result_file)
-    write_to_file('data/errors/' + name + '_error.csv', error_file)
+    write_to_file('data/errors/r/' + name + '_result.csv', result_file)
+    write_to_file('data/errors/e/' + name + '_error.csv', error_file)

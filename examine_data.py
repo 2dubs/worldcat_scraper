@@ -83,65 +83,89 @@ def search_result_found(url):
         return False
 
 
-# helper function to separate found and missing into two different files
-def separate_found_from_missing(data):
-    found_dic = {'found': [], 'no_author': [], 'no_year': [], 'neither': [], 'missing': [], 'error': []}
-    for row in data:
-        link = ri.get_advanced_search_url(row)
-        print(row)
-        try:
-            if search_result_found(link):
-                print("[Found]")
-                print("--------")
-                found_dic['found'].append(row)
-            else:
-                no_author = ri.get_advanced_search_url(row, au=False)
-                no_year = ri.get_advanced_search_url(row, yr=False)
-                neither = ri.get_advanced_search_url(row, au=False, yr=False)
-                if search_result_found(no_author):
-                    print("[Found (not specifying author)]")
-                    print("--------")
-                    found_dic['no_author'].append(row)
-                    continue
+def do_search_with_less_constraints(specifiers):
+    try:
+        all_specifiers = ri.get_advanced_search_url(specifiers)
 
-                if search_result_found(no_year):
-                    print("[Found (not specifying year)]")
-                    print("--------")
-                    found_dic['no_year'].append(row)
-                    continue
+        if search_result_found(all_specifiers):
+            print("[Found]")
+            return specifiers, all_specifiers
 
-                if search_result_found(neither):
-                    print("[Found (not specifying neither author nor year)]")
-                    print("--------")
-                    found_dic['neither'].append(row)
-                    continue
+        no_year = ri.get_advanced_search_url(specifiers, yr=False)
 
-                print("[Missing]")
-                print("--------")
-                found_dic['missing'].append(row)
+        if search_result_found(no_year):
+            print("[Found (not specifying year)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(not specifying year)' + new_specifiers[1]
+            return new_specifiers, no_year
 
-        except (UnicodeEncodeError, urllib.error.URLError):
-            print(row)
-            print("[Error]")
-            print("--------")
-            found_dic['error'].append(row)
+        no_ln = ri.get_advanced_search_url(specifiers, ln=False)
 
-    return found_dic
+        if search_result_found(no_ln):
+            print("[Found (not language)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(not language)' + new_specifiers[1]
+            return new_specifiers, no_ln
+
+        no_author = ri.get_advanced_search_url(specifiers, au=False)
+
+        if search_result_found(no_author):
+            print("[Found (not specifying author)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(not specifying author)' + new_specifiers[1]
+            return new_specifiers, no_author
+
+        no_year_author = ri.get_advanced_search_url(specifiers, au=False, yr=False)
+
+        if search_result_found(no_year_author):
+            print("[Found (not specifying neither year nor author)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(not specifying neither year nor author)' + new_specifiers[1]
+            return new_specifiers, no_year_author
+
+        no_year_ln = ri.get_advanced_search_url(specifiers, yr=False, ln=False)
+
+        if search_result_found(no_year_ln):
+            print("[Found (not specifying neither year nor language)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(not specifying neither year nor language)' + new_specifiers[1]
+            return new_specifiers, no_year_ln
+
+        no_author_ln = ri.get_advanced_search_url(specifiers, au=False, ln=False)
+
+        if search_result_found(no_author_ln):
+            print("[Found (not specifying neither author nor language)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(not specifying neither author nor language)' + new_specifiers[1]
+            return new_specifiers, no_author_ln
+
+        none = ri.get_advanced_search_url(specifiers, au=False, yr=False, ln=False)
+
+        if search_result_found(none):
+            print("[Found (specifying only name)]")
+            new_specifiers = specifiers
+            new_specifiers[1] = '(specifying only name)' + new_specifiers[1]
+            return new_specifiers, none
+
+        print("[Missing]")
+        return 'missing', None
+
+    except (UnicodeEncodeError, urllib.error.URLError):
+        print("[Error]")
+        return 'error', None
 
 
 # main function for separating files by whether results can be found
 def separate_main(name):
+    entries = read_from_file('data/errors/' + name + '.csv', read_header=False)
+    # dictionary = separate_found_from_missing(entries)
 
-    entries = read_from_file('data/entries/' + name + '.csv', read_header=False)
-    dictionary = separate_found_from_missing(entries)
+    # write_to_file('data/less_constraints/' + name + '_less_constraints_found.csv', dictionary['found'])
+    # write_to_file('data/less_constraints/' + name + '_less_constraints_error.csv', dictionary['error'])
 
-    write_to_file('data/search_found/' + name + '_search_found.csv', dictionary['found'])
-    write_to_file('data/less_constraints/' + name + '_no_author.csv', dictionary['no_author'])
-    write_to_file('data/less_constraints/' + name + '_no_year.csv', dictionary['no_year'])
-    write_to_file('data/less_constraints/' + name + '_neither.csv', dictionary['neither'])
-    write_to_file('data/search_missing/' + name + '_search_missing.csv', dictionary['missing'])
-    write_to_file('data/errors/' + name + '_search_error.csv', dictionary['error'])
+    for each in entries:
+        print(do_search_with_less_constraints(each))
 
 
 if __name__ == "__main__":
-    separate_main('b1')
+    separate_main('b0_b1_error')
